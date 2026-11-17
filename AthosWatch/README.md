@@ -520,7 +520,7 @@ MP4 的 `moov`（索引）只在文件**关闭**时才写。App 被系统杀掉�
 | 手表判断并生成承诺 | 通过（4 条承诺，其中 2 条带 `dueChanged` 修订，见 `ledger.json`） |
 | 快照回手机首页 | 通过（首页显示 4 条、2 条待确认、2 条改期） |
 | 真机识别 | **未验证** |
-| 模拟器当前状态 | 之后系统识别服务持续报 `Failed to initialize recognizer`，重启模拟器、重启 `corespeechd`、复用识别器实例、失败重试都没恢复 |
+| 模拟器当前状态 | 之后持续报 `Failed to initialize recognizer`。根因在系统日志里：`assistantd` 的 `listener failed to activate: xpc_error=[1: Operation not permitted]`，且 `Device does not support full Siri UoD`。重启模拟器、重启 `corespeechd`/`assistantd`、复用识别器实例、失败重试都没恢复 |
 
 第一次识别的第一句「我周五前」被听成了「我就」——这类错误正好说明为什么解析器要「宁可返回 nil 也不猜」：错一个字，日期就整个丢了，但至少不会凭空造出一条「周五前」的承诺。
 

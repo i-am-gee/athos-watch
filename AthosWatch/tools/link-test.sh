@@ -91,6 +91,16 @@ WATCH_DATA=$(xcrun simctl get_app_container "$WATCH_ID" "$WATCH_BUNDLE" data)
 rm -f "$WATCH_DATA/Library/Preferences/$WATCH_BUNDLE.plist"
 xcrun simctl spawn "$WATCH_ID" killall -9 cfprefsd >/dev/null 2>&1 || true
 
+# 两端的数据都要清干净，否则每次跑都在上一轮的结果上累加：
+# 手表的账本会一直加，手机的 Inbox 会把旧段也当成新台词注入。
+rm -rf "$WATCH_DATA/Documents/Segments" "$WATCH_DATA/Documents/ledger.json" \
+       "$WATCH_DATA/Documents/link.log"
+mkdir -p "$WATCH_DATA/Documents/Segments"
+PHONE_DATA=$(xcrun simctl get_app_container "$PHONE_ID" "$PHONE_BUNDLE" data 2>/dev/null || true)
+if [ -n "${PHONE_DATA:-}" ]; then
+  rm -rf "$PHONE_DATA/Documents/Inbox" "$PHONE_DATA/Documents/link.log"
+fi
+
 echo "▸ 放进手表沙盒"
 WATCH_DATA=$(xcrun simctl get_app_container "$WATCH_ID" "$WATCH_BUNDLE" data)
 SEGMENTS="$WATCH_DATA/Documents/Segments"
@@ -131,10 +141,15 @@ echo "▸ 启动"
 xcrun simctl terminate "$PHONE_ID" "$PHONE_BUNDLE" 2>/dev/null || true
 xcrun simctl terminate "$WATCH_ID" "$WATCH_BUNDLE" 2>/dev/null || true
 if [ "$FAKE" = "1" ]; then
-  xcrun simctl launch "$PHONE_ID" "$PHONE_BUNDLE" -fakeTranscript >/dev/null
+  # 用 UserDefaults 而不是启动参数：`simctl launch` 后面跟的参数
+  # 在 App 被反复启停时经常传不进去（十次里成两三次），
+  # `defaults write` 是唯一每次都生效的开关。
+  xcrun simctl spawn "$PHONE_ID" defaults write "$PHONE_BUNDLE" athos.fakeTranscript -bool YES
 else
-  xcrun simctl launch "$PHONE_ID" "$PHONE_BUNDLE" >/dev/null
+  # 上一次 --fake 留下的开关必须清掉，否则这次会「看起来跑通了但其实没识别」
+  xcrun simctl spawn "$PHONE_ID" defaults delete "$PHONE_BUNDLE" athos.fakeTranscript 2>/dev/null || true
 fi
+xcrun simctl launch "$PHONE_ID" "$PHONE_BUNDLE" >/dev/null
 sleep 3
 xcrun simctl launch "$WATCH_ID" "$WATCH_BUNDLE" -linkProbe >/dev/null
 

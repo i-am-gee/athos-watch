@@ -27,6 +27,20 @@ final class PhoneLink: NSObject, ObservableObject {
     /// 已经转写过的段。重复收到同一段（重连时很常见）不必再识别一遍——
     /// 一次识别要几秒 CPU，而且结果和上次一模一样。
     private var transcribed: Set<String> = []
+    /// 注入模式是否已触发过，防止每收到一段就重放一遍
+    private var injected = false
+
+    /// 是否用已知台词代替识别。
+    ///
+    /// 三个来源都认：启动参数、环境变量、UserDefaults。
+    /// 不是洁癖——`simctl launch` 的启动参数在 App 被反复启停时经常传不进去
+    /// （实测同一个命令十次里成两三次），`SIMCTL_CHILD_` 前缀的环境变量也不稳。
+    /// `defaults write` 是唯一每次都生效的开关，调链路时用它。
+    private var wantsInjection: Bool {
+        ProcessInfo.processInfo.arguments.contains("-fakeTranscript")
+            || ProcessInfo.processInfo.environment["ATHOS_FAKE_TRANSCRIPT"] == "1"
+            || UserDefaults.standard.bool(forKey: "athos.fakeTranscript")
+    }
 
     private override init() { super.init() }
 
@@ -49,24 +63,11 @@ final class PhoneLink: NSObject, ObservableObject {
 
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
+        LinkLog.write("手机：启动参数「\(args.dropFirst().joined(separator: " "))」注入=\(wantsInjection)")
         if args.contains("-retranscribe") {
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 self.replayInbox()
-            }
-        }
-        if args.contains("-fakeTranscript") {
-            Task { @MainActor in
-                // 等音频真正落地再注入：传输和注入是两条独立路径，
-                // 固定等 3 秒经常在文件还没到时就把空列表读走了。
-                for _ in 0..<15 {
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
-                    let files = (try? FileManager.default.contentsOfDirectory(
-                        at: self.inbox, includingPropertiesForKeys: nil
-                    )) ?? []
-                    if files.filter({ $0.pathExtension == "m4a" }).count >= 6 { break }
-                }
-                self.injectKnownLines()
             }
         }
         #endif
@@ -128,6 +129,21 @@ final class PhoneLink: NSObject, ObservableObject {
             descriptor.id, descriptor.duration, descriptor.bytes / 1024
         ))
         appendLog("收到 \(descriptor.id)")
+
+        // 注入模式：等整批音频到齐再一次放出去，而不是启动后定时器空转等。
+        // 触发点放在「段落地之后」，就不会出现「定时器跑完了文件还没来」。
+        if wantsInjection, !injected {
+            let ready = ((try? FileManager.default.contentsOfDirectory(
+                at: inbox, includingPropertiesForKeys: nil
+            )) ?? []).filter { $0.pathExtension == "m4a" }.count
+            if ready >= 6 {
+                injected = true
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    self.injectKnownLines()
+                }
+            }
+        }
 
         // 串行排队：SFSpeechRecognizer 并发跑多段会互相抢资源，
         // 而且顺序错了还会让「先答应后改期」的判断颠倒。

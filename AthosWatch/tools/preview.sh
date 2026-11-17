@@ -49,7 +49,24 @@ fi
 # ---------- 3. 启动模拟器 ----------
 echo "==> 启动模拟器"
 xcrun simctl boot "$UDID" 2>/dev/null || echo "    （已在运行）"
-open -a "$(xcode-select -p)/Applications/Simulator.app" 2>/dev/null || echo "    （模拟器界面已就绪）"
+# Xcode 26 及更早：<Xcode>/Contents/Developer/Applications/Simulator.app
+# Xcode 27 起：Simulator.app 已不存在，改名 <Xcode>/Contents/Applications/DeviceHub.app
+XCODE_ROOT="$(xcode-select -p)"
+XCODE_ROOT="${XCODE_ROOT%/Contents/Developer}"
+SIM_UI=""
+for candidate in \
+  "$XCODE_ROOT/Contents/Developer/Applications/Simulator.app" \
+  "$XCODE_ROOT/Contents/Applications/Simulator.app" \
+  "$XCODE_ROOT/Contents/Applications/DeviceHub.app" \
+  "/Applications/Xcode.app/Contents/Applications/DeviceHub.app"
+do
+  [ -d "$candidate" ] && { SIM_UI="$candidate"; break; }
+done
+if [ -n "$SIM_UI" ]; then
+  open -a "$SIM_UI" 2>/dev/null || echo "    （模拟器界面已就绪）"
+else
+  echo "    （未找到模拟器界面，$UDID 已在后台运行，可直接 simctl screenshot 取图）"
+fi
 sleep 8
 
 # ---------- 4. 构建（模拟器，无需签名）----------
@@ -84,6 +101,6 @@ cat <<EOF
 
 预览已启动。注意两点：
   1. 模拟器要听到声音，请使用 Mac 的麦克风说话，或播放一段人声录音。
-  2. 若界面一直显示「待机」，先点一次「开始监听」，再授予麦克风权限。
+  2. 若界面一直显示「待机」，点一下中央圆球，再授予麦克风权限。
      模拟器的权限弹窗在 模拟器菜单 → Features → 或设备设置中确认。
 EOF

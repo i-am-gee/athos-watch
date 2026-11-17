@@ -13,6 +13,8 @@ final class RecordingController: ObservableObject {
     @Published private(set) var openThresholdDBFS: Float = -48
     @Published private(set) var dutyCycle: Double = 0
     @Published private(set) var recordedSeconds: Double = 0
+    /// 当前这一段的已录时长，用于主屏那圈进度弧
+    @Published private(set) var segmentSeconds: Double = 0
     @Published private(set) var segmentCount: Int = 0
     @Published private(set) var droppedBuffers: Int = 0
     @Published private(set) var estimatedPctPerHour: Double = 0
@@ -212,6 +214,7 @@ final class RecordingController: ObservableObject {
         // 已录时长要含「当前这段还没关闭」的部分，否则录音中会一直显示 0
         recordedSeconds = ledger.recordedSeconds
             + (reading.state == .recording ? reading.segmentSeconds : 0)
+        segmentSeconds = reading.state == .recording ? reading.segmentSeconds : 0
     }
 
     private func pushConfig() {

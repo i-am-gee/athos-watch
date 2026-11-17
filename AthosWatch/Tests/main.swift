@@ -91,3 +91,39 @@ for duty in [1.0, 0.5, 0.25, 0.15, 0.10] {
     print(String(format: "占空比 %3.0f%%  →  %.2f%%/h，满电可用 %.1f 小时，比连续录音省 %.0f%%",
                  duty * 100, rate, hours, saving))
 }
+
+// MARK: - 主屏时长格式
+
+print("---------------------------------------------")
+print("主屏时长格式（ClockText.short）：")
+
+let clockCases: [(Double, String)] = [
+    (0, "00:00"),
+    (0.4, "00:00"),
+    (9.9, "00:09"),
+    (59.9, "00:59"),
+    (60, "01:00"),
+    (605, "10:05"),
+    (3599, "59:59"),
+    (3600, "1:00:00"),
+    (7384.7, "2:03:04"),
+    (-5, "00:00"),
+    (-0.001, "00:00"),
+    (.nan, "00:00"),
+    (.infinity, "00:00"),
+]
+
+var clockFailures = 0
+for (input, expected) in clockCases {
+    let got = ClockText.short(input)
+    let ok = got == expected
+    if !ok { clockFailures += 1 }
+    let inputText = input.isNaN ? "nan" : (input.isInfinite ? "inf" : "\(input)")
+    print("  \(ok ? "PASS" : "FAIL")  \(inputText) → \(got)\(ok ? "" : "，期望 \(expected)")")
+}
+
+if clockFailures > 0 {
+    print("时长格式有 \(clockFailures) 项不符")
+    exit(1)
+}
+print("时长格式全部通过")

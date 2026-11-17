@@ -3,6 +3,8 @@ import SwiftUI
 struct RootView: View {
 
     @StateObject private var controller = RecordingController()
+    /// 盘上已有录音的总时长，口径与 `SegmentsView` 头部那行完全一致
+    @StateObject private var library = SegmentStore()
 
     private var isRecording: Bool { controller.gateState == .recording }
 
@@ -12,54 +14,87 @@ struct RootView: View {
         return isRecording ? "记录中" : "在听"
     }
 
+    /// 已入库的总时长 + 正在录但还没落盘的那一段。
+    /// 不能只显示 `library.totalDuration`：录着的时候它两分钟才动一次，
+    /// 会被当成卡死；也不能只显示本次会话，那会和列表头的数字对不上。
+    private var displaySeconds: Double {
+        library.totalDuration + (isRecording ? controller.segmentSeconds : 0)
+    }
+
     var body: some View {
-        ZStack {
-            // 全屏底色跟着状态走，抬腕一眼就知道在不在录
-            background
+        // 必须用 GeometryReader 拿到真实尺寸再显式下发。直接把 ZStack 放在根上时，
+        // 它拿到的是「未指定」高度提议，于是缩成内容高度、被根视图居中——Spacer
+        // 一个点都分不到，底部入口就永远贴在时长下面（上一版「录音」被挤进可视区
+        // 之外也是这个原因，当时靠调小字号绕过去了，其实没修到根）。
+        GeometryReader { geo in
+            ZStack {
+                // 全屏底色跟着状态走，抬腕一眼就知道在不在录
+                background
 
-            VStack(spacing: 0) {
-                SonicOrbView(
-                    isRunning: controller.isRunning,
-                    isRecording: isRecording,
-                    levelDBFS: controller.levelDBFS,
-                    segmentProgress: min(1, controller.segmentSeconds / 120)
-                )
-                .frame(width: 154, height: 154)
-                .contentShape(Circle())
-                .onTapGesture { controller.toggle() }
-                .accessibilityLabel(controller.isRunning ? "停止记录" : "开始监听")
-                .accessibilityAddTraits(.isButton)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
 
-                Text(statusText)
-                    .font(.system(size: 12, weight: .medium))
-                    .tracking(3)
-                    .foregroundStyle(controller.isRunning ? .white.opacity(0.85) : .white.opacity(0.4))
-                    .padding(.top, 2)
+                    SonicOrbView(
+                        isRunning: controller.isRunning,
+                        isRecording: isRecording,
+                        levelDBFS: controller.levelDBFS,
+                        segmentProgress: min(1, controller.segmentSeconds / 120)
+                    )
+                    .frame(width: 154, height: 154)
+                    .contentShape(Circle())
+                    .onTapGesture { controller.toggle() }
+                    .accessibilityLabel(controller.isRunning ? "停止记录" : "开始监听")
+                    .accessibilityAddTraits(.isButton)
 
-                Spacer(minLength: 0)
+                    Text(statusText)
+                        .font(.system(size: 12, weight: .medium))
+                        .tracking(3)
+                        .foregroundStyle(controller.isRunning ? .white.opacity(0.85) : .white.opacity(0.4))
+                        .padding(.top, 2)
 
-                NavigationLink {
-                    SegmentsView()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 11))
-                        Text("录音")
-                            .font(.system(size: 11))
+                    Text(ClockText.short(displaySeconds))
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(durationColor)
+                        .padding(.top, 1)
+                        .accessibilityLabel("已录 \(ClockText.short(displaySeconds))")
+
+                    Spacer(minLength: 0)
+
+                    NavigationLink {
+                        SegmentsView()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 11))
+                            Text("录音")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundStyle(.white.opacity(0.4))
                     }
-                    .foregroundStyle(.white.opacity(0.4))
+                    .buttonStyle(.plain)
+                    .tint(.white.opacity(0.4))
+                    .padding(.bottom, 3)
                 }
-                .buttonStyle(.plain)
-                .tint(.white.opacity(0.4))
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            .padding(.vertical, 6)
         }
         .ignoresSafeArea()
+        // 新段落盘后重算总量；从列表页返回时也重算一次（那里可能删过段）
+        .onAppear { library.reload() }
+        .onChange(of: controller.segmentCount) { _, _ in library.reload() }
         .alert("提示", isPresented: alertBinding) {
             Button("知道了", role: .cancel) { controller.errorMessage = nil }
         } message: {
             Text(controller.errorMessage ?? "")
         }
+    }
+
+    private var durationColor: Color {
+        if !controller.isRunning { return .white.opacity(0.32) }
+        return isRecording
+            ? Color(red: 0.30, green: 0.92, blue: 0.55)
+            : Color(red: 0.35, green: 0.82, blue: 0.95).opacity(0.75)
     }
 
     private var background: some View {

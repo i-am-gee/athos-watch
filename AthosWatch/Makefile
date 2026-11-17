@@ -23,7 +23,7 @@ doctor:
 
 gate:
 	@mkdir -p build-tools
-	swiftc -O Sources/Audio/SonicGate.swift Sources/Audio/PowerLedger.swift Tests/main.swift -o build-tools/gatecheck
+	swiftc -O Sources/Audio/SonicGate.swift Sources/Audio/PowerLedger.swift Sources/Audio/ClockText.swift Tests/main.swift -o build-tools/gatecheck
 	@./build-tools/gatecheck
 
 gen:

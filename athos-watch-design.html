@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Athos · Apple Watch 全天候记忆采集与数字分身 · 产品技术设计</title>
+<style>
+:root{
+  --ink:#1a1a18; --ink2:#4a4a45; --ink3:#7a7a72;
+  --line:#e3e1d9; --line2:#c9c6bb;
+  --bg:#fbfaf7; --card:#ffffff; --soft:#f4f2ec;
+  --accent:#0b5c8a; --accent-soft:#eaf2f7;
+  --warn:#8a4a0b; --warn-soft:#fdf3e6;
+  --red:#8f2222; --red-soft:#fbeeee;
+  --green:#1f5f45; --green-soft:#eaf5ef;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15.5px; line-height:1.75; letter-spacing:.01em;
+  overflow-x:hidden;
+}
+.wrap{max-width:1000px;margin:0 auto;padding:0 28px 120px}
+header.cover{padding:72px 0 40px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3);margin-bottom:20px}
+h1{font-size:38px;line-height:1.25;font-weight:600;margin:0 0 16px;letter-spacing:-.01em}
+h1 small{display:block;font-size:16px;font-weight:400;color:var(--ink2);margin-top:12px;letter-spacing:0;line-height:1.6}
+.meta{display:flex;flex-wrap:wrap;gap:8px 28px;font-size:12.5px;color:var(--ink3);font-family:var(--mono);margin-top:26px}
+.meta span b{color:var(--ink2);font-weight:500}
+
+h2{font-size:22px;font-weight:600;margin:64px 0 6px;letter-spacing:-.005em;scroll-margin-top:24px}
+h2 .num{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:500;margin-right:12px;vertical-align:2px}
+h3{font-size:16px;font-weight:600;margin:34px 0 8px;color:var(--ink)}
+h4{font-size:14px;font-weight:600;margin:22px 0 6px;color:var(--ink2)}
+p{margin:12px 0}
+ul,ol{margin:12px 0;padding-left:22px}
+li{margin:6px 0}
+li::marker{color:var(--ink3)}
+strong{font-weight:600}
+.sub{color:var(--ink2)}
+hr{border:0;border-top:1px solid var(--line);margin:56px 0}
+
+.lead{font-size:16.5px;color:var(--ink2);border-left:2px solid var(--accent);padding-left:18px;margin:24px 0 0}
+
+.callout{border:1px solid var(--line2);background:var(--card);border-radius:10px;padding:22px 24px;margin:26px 0}
+.callout .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);display:block;margin-bottom:8px}
+.callout.verdict{border-left:3px solid var(--red);background:var(--red-soft);border-color:#f0d5d5}
+.callout.verdict .tag{color:var(--red)}
+.callout.note{border-left:3px solid var(--accent);background:var(--accent-soft);border-color:#cfe0ea}
+.callout.note .tag{color:var(--accent)}
+.callout.risk{border-left:3px solid var(--warn);background:var(--warn-soft);border-color:#f0dfc6}
+.callout.risk .tag{color:var(--warn)}
+.callout p:first-of-type{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+
+table{width:100%;table-layout:fixed;border-collapse:collapse;margin:22px 0;font-size:13.5px;line-height:1.6}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line);word-break:break-word;overflow-wrap:anywhere;hyphens:auto}
+th{background:var(--soft);font-weight:600;font-size:12.5px;color:var(--ink2);border-bottom:1px solid var(--line2);letter-spacing:.02em}
+td.k{font-weight:600;color:var(--ink)}
+td.mono,.mono{font-family:var(--mono);font-size:12.5px}
+tr:last-child td{border-bottom:1px solid var(--line2)}
+.tbl-note{font-size:12.5px;color:var(--ink3);margin:-12px 0 26px;line-height:1.6}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:24px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.card .h{font-size:13.5px;font-weight:600;margin-bottom:6px;display:flex;align-items:baseline;gap:8px}
+.card .h em{font-family:var(--mono);font-style:normal;font-size:11px;color:var(--accent);letter-spacing:.08em}
+.card p{margin:0;font-size:13px;line-height:1.65;color:var(--ink2)}
+
+.layers{margin:26px 0}
+.layer{display:grid;grid-template-columns:110px 1fr;gap:20px;padding:16px 0;border-bottom:1px dashed var(--line2)}
+.layer:last-child{border-bottom:0}
+.layer .lbl{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);padding-top:3px}
+.layer .body{font-size:14px;line-height:1.7}
+.layer .body b{display:block;margin-bottom:3px;font-size:14.5px}
+.layer .body .m{color:var(--ink2);font-size:13.5px}
+
+pre{background:#232320;color:#e8e6df;padding:18px 20px;border-radius:10px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.7;margin:20px 0}
+code{font-family:var(--mono);font-size:.9em;background:var(--soft);padding:1px 5px;border-radius:4px;color:var(--ink)}
+pre code{background:none;padding:0;color:inherit;font-size:inherit}
+
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:24px 0;font-size:13px}
+.flow .n{background:var(--card);border:1px solid var(--line2);border-radius:7px;padding:8px 12px;white-space:nowrap}
+.flow .a{color:var(--ink3);font-family:var(--mono)}
+.flow .n.hi{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:500}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:24px 0}
+.kpi{background:var(--card);padding:16px 18px}
+.kpi .v{font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.kpi .v span{font-size:12px;font-weight:400;color:var(--ink3);margin-left:2px}
+.kpi .l{font-size:11.5px;color:var(--ink3);margin-top:4px;line-height:1.5}
+
+.tl{margin:26px 0;border-left:1px solid var(--line2);padding-left:24px}
+.tl .it{position:relative;padding-bottom:26px}
+.tl .it:last-child{padding-bottom:0}
+.tl .it::before{content:"";position:absolute;left:-29px;top:7px;width:9px;height:9px;border-radius:50%;background:var(--card);border:1.5px solid var(--line2)}
+.tl .it.on::before{background:var(--accent);border-color:var(--accent)}
+.tl .ph{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;color:var(--accent);margin-bottom:4px}
+.tl .tt{font-size:15px;font-weight:600;margin-bottom:4px}
+.tl .ds{font-size:13.5px;color:var(--ink2);line-height:1.7}
+
+footer{margin-top:80px;padding-top:24px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink3);line-height:1.8}
+
+@media (max-width:680px){
+  .wrap{padding:0 18px 80px}
+  h1{font-size:28px}
+  h2{font-size:19px;margin-top:48px}
+  body{font-size:15px}
+  .layer{grid-template-columns:1fr;gap:4px}
+  .layer .lbl{padding-top:0}
+  table{font-size:12.5px}
+  th,td{padding:8px 9px}
+  header.cover{padding:44px 0 28px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="cover">
+  <div class="eyebrow">Product &amp; Technical Design · Rev 1.0</div>
+  <h1>Athos
+    <small>Apple Watch 全天候记忆采集，与可溯源的「数字分身」蒸馏系统</small>
+  </h1>
+  <div class="meta">
+    <span><b>形态</b> watchOS + iOS + 云端</span>
+    <span><b>日期</b> 2026-11-16</span>
+    <span><b>状态</b> 待评审</span>
+  </div>
+  <p class="lead">这不是一个录音笔。录音笔的产出是文件；本产品的产出是<b>结构化的自我</b>——可被检索、可被质询、可被复述的长期记忆与决策模式。录音只是原料，蒸馏才是产品。</p>
+</header>
+
+<h2><span class="num">00</span>结论先行：先纠正一个产品前提</h2>
+
+<div class="callout verdict">
+  <span class="tag">Feasibility verdict</span>
+  <p><strong>「Apple Watch 24×7 不间断录音」在该平台上不可实现，且不应作为产品承诺。</strong>三重硬约束叠加：</p>
+  <p><b>1）功耗。</b>麦克风常开 + 音频 DSP 持续唤醒会阻止 SoC 进入深度休眠。参照现有手表扬声器/麦克风类应用实测区间，连续录音的整机功耗约 35%–45%/小时，满电可用时长约 2–2.5 小时。<br>
+  <b>2）系统。</b>watchOS 不存在通用的后台音频采集权限。App 抬腕时在前台，垂腕后即被挂起；维持后台运行的合法路径只有 <code>HKWorkoutSession</code>、限定时长的 <code>WKExtendedRuntimeSession</code>（单次上限约 1 小时，且类型受限）、或音频播放后台模式。<br>
+  <b>3）审核。</b>为「非健身用途」长期占用 <code>HKWorkoutSession</code> 或后台音频模式，属于 App Store 审核明确关注的模式滥用，存在高概率被拒风险。</p>
+  <p style="margin-top:14px"><b>可行的产品定义是：</b>全天候<b>待命</b>（on-watch sensing）+ <b>事件驱动</b>采集 + <b>iPhone 作为主力采集面</b> + <b>充电窗口批量上传</b>。手表的价值不在「录得久」，而在「随时在手、一键即达、可不看屏幕完成标记」。</p>
+</div>
+
+<p>这个纠正不是退让，而是把产品从「续航竞赛」拉回「价值密度竞赛」。下面所有设计都建立在这个前提上。</p>
+
+<h2><span class="num">01</span>产品定位与用户价值</h2>
+
+<h3>1.1 一句话定义</h3>
+<p>一个把日常对话蒸馏成<b>可溯源个人记忆</b>，并逐步训练出<b>能替你复述判断逻辑的分身</b>的私人系统。手表是它的采集触角与遥控器，iPhone 是它的随身硬盘，云端是它的蒸馏厂。</p>
+
+<h3>1.2 三类刚需，按可验证性排序</h3>
+<table>
+  <colgroup><col style="width:20%"><col style="width:40%"><col style="width:40%"></colgroup>
+  <thead><tr><th>需求</th><th>用户真实动机</th><th>为什么手表形态更优</th></tr></thead>
+  <tbody>
+    <tr><td class="k">不再遗忘</td><td>会议里被口头交代的事、路上想到的点子、别人随口说的偏好，事后无法复原。</td><td>手机常不在手边/不便掏出；抬腕一键即录，摩擦趋近于零。</td></tr>
+    <tr><td class="k">不再重复解释</td><td>同一套背景要向不同人、不同 AI 反复陈述，成本极高。</td><td>长期采集是「个人上下文」的唯一来源，一次沉淀、处处复用。</td></tr>
+    <tr><td class="k">校准自我认知</td><td>我以为我这样决策，实际我那样决策。口头承诺与真实行为存在系统性偏差。</td><td>被动采集避免了「事后美化」，是唯一诚实的行为数据源。</td></tr>
+  </tbody>
+</table>
+
+<h3>1.3 明确不做的事</h3>
+<ul>
+  <li><b>不做取证工具。</b>不提供「录音为证」类功能与话术，从产品文案层面切断法律风险联想。</li>
+  <li><b>不做隐形录音。</b>采集状态必须可见（表盘常驻标识 + 指示灯 + 触觉脉冲）。</li>
+  <li><b>不做无源生成。</b>分身输出的每一句判断，必须能回跳到原始录音时间戳，否则不输出。</li>
+</ul>
+
+<h2><span class="num">02</span>平台能力边界与工程对策</h2>
+
+<table>
+  <colgroup><col style="width:24%"><col style="width:38%"><col style="width:38%"></colgroup>
+  <thead><tr><th>需求</th><th>平台真实限制</th><th>工程对策</th></tr></thead>
+  <tbody>
+    <tr><td class="k">后台持续采集</td><td>垂腕即挂起，无通用后台音频权限</td><td>双轨：iPhone 承担常驻采集（后台音频 + 位置无关）；手表仅做「会话式采集」，单次 15–30 分钟，间歇休眠</td></tr>
+    <tr><td class="k">保活</td><td>仅 workout session / 限时 extended runtime 可用</td><td>封装为「专注模式」语义：用户主动开启的采集会话使用 workout session，会话结束立即释放；UI 如实告知，不做静默保活</td></tr>
+    <tr><td class="k">麦克风独占</td><td>录音时无法同时播放音频，且抢占通话</td><td>采集优先级让位于电话/会议/导航；检测到通话或媒体播放自动暂停并标记断点</td></tr>
+    <tr><td class="k">存储与传输</td><td>手表可用空间有限，蓝牙吞吐低</td><td>手表侧只保留未同步片段（上限 500MB，滚动淘汰）；传输走 iPhone 中转，优先 WiFi + 充电</td></tr>
+    <tr><td class="k">端侧算力</td><td>抬腕唤醒时长短，无法跑重模型</td><td>端侧只跑 VAD（语音活动检测）+ 声学事件分类；转写放 iPhone（系统端侧转写 API 优先）或云端</td></tr>
+    <tr><td class="k">审核合规</td><td>后台模式滥用是高频拒审项</td><td>准备两套提交策略：标准版（手表为辅助采集面，主采集在 iPhone）；若被拒，降级为「手表仅前台/会话采集」并同步调整叙事</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">03</span>系统架构</h2>
+
+<div class="layers">
+  <div class="layer">
+    <div class="lbl">L0 采集</div>
+    <div class="body"><b>端侧多源采集面</b><span class="m">Apple Watch（触发、标记、短时会话采集）、iPhone（常驻收音主力）、AirPods（免手麦克风，通勤与行走场景）。三源不并行抢麦，由会话仲裁器按场景择一。</span></div>
+  </div>
+  <div class="layer">
+    <div class="lbl">L1 边缘</div>
+    <div class="body"><b>加密缓冲与断点续传</b><span class="m">端侧 VAD 切段（静音 400ms 断句，单段上限 60s），Opus 16kbps 单声道编码（约 7.2MB/小时）。AES-GCM 加密，密钥存 Secure Enclave。本地环形缓冲区保留 72 小时，WiFi + 充电窗口批量上传，弱网自动降码率。</span></div>
+  </div>
+  <div class="layer">
+    <div class="lbl">L2 转写</div>
+    <div class="body"><b>转写、说话人分离与时间对齐</b><span class="m">优先使用系统端侧长音频转写能力（低延迟、零边际成本、数据不出端）；置信度低的片段回退云端批量 ASR。输出带词级时间戳与说话人标签的转写稿，作为后续一切蒸馏的唯一事实底稿。</span></div>
+  </div>
+  <div class="layer">
+    <div class="lbl">L3 蒸馏</div>
+    <div class="body"><b>三层压缩：事实 → 认知 → 人格</b><span class="m">每层有独立的 schema、独立的更新频率、独立的人工确认入口。层与层之间通过证据 ID 双向链接（详见 §05）。</span></div>
+  </div>
+  <div class="layer">
+    <div class="lbl">L4 图谱</div>
+    <div class="body"><b>时序记忆图谱</b><span class="m">人物、组织、项目、事件、决定、承诺、观点为节点；参与、因果、矛盾、演化、归属为边。所有节点携带 occurred_at、recorded_at、source_span、confidence 四个元字段。</span></div>
+  </div>
+  <div class="layer">
+    <div class="lbl">L5 分身</div>
+    <div class="body"><b>人格层与输出面</b><span class="m">风格模型（句长、语气、口头禅）、价值排序、决策启发式、禁忌清单。输出形态：日终回顾、周度复盘、会前简报、决策对照、可溯源问答。</span></div>
+  </div>
+</div>
+
+<div class="callout note">
+  <span class="tag">架构取舍</span>
+  <p>把转写放在端侧、把蒸馏放在云端，是成本与隐私的最优切分：转写是<b>高带宽、低智能</b>的活（本地做省钱且不出端），蒸馏是<b>低带宽、高智能</b>的活（云端做效果更好且只传文本）。这条切分线同时把云成本压到可订阅的水平（见 §09）。</p>
+</div>
+
+<h2><span class="num">04</span>采集策略与功耗预算</h2>
+
+<p>核心机制是<b>分级唤醒</b>：绝大多数时间系统处于极低占空比的声学感知，只有当检测到「有人说话且持续超过阈值」才升级到完整采集。</p>
+
+<div class="grid">
+  <div class="card"><div class="h"><em>P0</em>声学哨兵</div><p>仅运行能量 + 过零率的轻量 VAD，帧长 30ms，不落盘、不转写。判定「环境是否有可记录的人声」。</p></div>
+  <div class="card"><div class="h"><em>P1</em>触发判定</div><p>人声持续 ≥ 3 秒且信噪比达标，或检测到唤醒词「记一下」，升级为完整编码并落盘。</p></div>
+  <div class="card"><div class="h"><em>P2</em>完整采集</div><p>编码、切段、加密、写环形缓冲区。遇到静音 90 秒自动降回 P0。</p></div>
+  <div class="card"><div class="h"><em>P3</em>人工标记</div><p>用户抬腕双击即打「重点」标记，生成 ±60 秒高优先级片段，进入当日回顾首屏。</p></div>
+</div>
+
+<table>
+  <colgroup><col style="width:26%"><col style="width:18%"><col style="width:20%"><col style="width:36%"></colgroup>
+  <thead><tr><th>运行模式</th><th>采集占空比</th><th>预估功耗</th><th>适用判断</th></tr></thead>
+  <tbody>
+    <tr><td class="k">连续录音</td><td>100%</td><td class="mono">~35–45%/h</td><td>不可作为产品形态使用</td></tr>
+    <tr><td class="k">哨兵 + 触发采集</td><td>15%–25%</td><td class="mono">~8–12%/h</td><td>手表独立时的推荐档，约 7–10 小时</td></tr>
+    <tr><td class="k">纯待命 + 手动触发</td><td>&lt;5%</td><td class="mono">~3–5%/h</td><td>极端省电档，全天可用</td></tr>
+    <tr><td class="k">iPhone 兜底</td><td>—</td><td class="mono">手表 ~3%/h</td><td>推荐默认：手表只做控制面与标记</td></tr>
+  </tbody>
+</table>
+<p class="tbl-note">功耗为基于器件与现有同类应用实测的工程估算区间，需在 Series 9 / Ultra 2 两颗芯片上做实测校准后写入产品承诺，严禁直接把估算值用于对外宣传。</p>
+
+<h4>断点与失败设计</h4>
+<ul>
+  <li>缓冲区写满时按「低置信度段 → 无声段 → 最旧段」的优先序淘汰，绝不丢弃已标记重点。</li>
+  <li>存储中断、麦克风被抢占、系统杀死进程，均写入 <code>gap_event</code>，在回顾界面明确显示「此处有 12 分钟未记录」，不假装完整。</li>
+  <li>低电量模式（&lt;20%）自动降为「仅手动触发」，并推送一次告知。</li>
+</ul>
+
+<h2><span class="num">05</span>三层蒸馏管线：从音频到人格</h2>
+
+<p>这是产品的真正壁垒所在。常见错误是「转写 + 摘要」——那只是压缩，不是蒸馏。蒸馏要求每一层的输出都是<b>可被下一层消费的结构化断言</b>，而不是自然语言段落。</p>
+
+<h3>5.1 第一层：事实层</h3>
+<p>目标是把流水对话还原为结构化事件。抽取字段固定为七元组：<code>who / whom / when / where / what / decision / commitment</code>。关键设计：</p>
+<ul>
+  <li><b>只抽取有说话人归属的断言。</b>无法确定谁说的一句话，标记为 <code>unattributed</code>，不进入事实库。</li>
+  <li><b>承诺单独建模。</b>「我周五给你」是一种带履约风险的断言，必须能从图谱里被查询、被提醒、被核销。</li>
+  <li><b>每条事实附 source_span。</b>指向转写稿的字符区间与音频时间戳，这是全部可溯源性的根。</li>
+</ul>
+
+<h3>5.2 第二层：认知层</h3>
+<p>从多条事实中归纳出稳定的判断倾向。产出物是「观点卡片」而非摘要：</p>
+<pre><code>{
+  "claim":    "在信息不足时，我倾向先小成本试跑，而不是继续调研",
+  "evidence": ["ev_20261103_1142", "ev_20261028_0930", "ev_20261015_1610"],
+  "conditions": "决策可逆 且 试跑成本 &lt; 2 人日",
+  "counter":   ["ev_20261112_1005"],          // 反例，必须保留
+  "confidence": 0.72,
+  "updated_at": "2026-11-12T18:20:00+08:00"
+}</code></pre>
+<p>三条硬规则：<b>反例不得被平均掉</b>（<code>counter</code> 字段强制保留）；<b>条件必须显式</b>（去掉条件的观点会退化成正确的废话）；<b>置信度随证据数递减边际</b>，避免同一件事在十次对话里重复出现就被误判为强信念。</p>
+
+<h3>5.3 第三层：人格层</h3>
+<p>人格层不是「模仿说话」，而是四类可评估的参数：</p>
+<table>
+  <colgroup><col style="width:22%"><col style="width:40%"><col style="width:38%"></colgroup>
+  <thead><tr><th>维度</th><th>刻画什么</th><th>怎么验证</th></tr></thead>
+  <tbody>
+    <tr><td class="k">表达风格</td><td>句长分布、语气词频率、开场与收束习惯、术语偏好</td><td>盲测：让同事分辨哪段是本人原话、哪段是分身生成</td></tr>
+    <tr><td class="k">价值排序</td><td>冲突时的取舍优先级（速度 vs 稳妥、关系 vs 正确）</td><td>情境题：给出两难场景，比对分身选择与本人历史选择</td></tr>
+    <tr><td class="k">决策启发式</td><td>默认路径、否决条件、升级到人决策的触发线</td><td>预测题：对已发生的决策做盲预测，算 Top-1 命中率</td></tr>
+    <tr><td class="k">边界与禁忌</td><td>不承诺的事、不参与的场合、不愿被记录的领域</td><td>越界测试：主动诱导分身越界，检查拒绝率</td></tr>
+  </tbody>
+</table>
+
+<div class="callout risk">
+  <span class="tag">最容易做错的地方</span>
+  <p>把「分身」做成「一个说话像我、但记忆靠猜的聊天机器人」。这类产品的失败点不是风格不像，而是<b>记忆错误</b>——一旦用户发现分身在编造他"说过"的话，信任一次性归零且不可恢复。所以人格层的输出必须默认携带「依据片段编号 + 置信度」，低置信时明说「我不确定，你上次类似情境是这么处理的」而不是给一个笃定答案。</p>
+</div>
+
+<h2><span class="num">06</span>数据模型与记忆图谱</h2>
+
+<pre><code>Person   { id, name, org, relation, first_seen, aliases[] }
+Event    { id, occurred_at, duration, place, participants[], topic[] }
+Fact     { id, event_id, speaker_id, type, payload, source_span, confidence }
+Commit   { id, from, to, what, due_at, status, source_span }        // 承诺
+Claim    { id, text, conditions, evidence[], counter[], confidence } // 观点卡片
+Persona  { version, style_vec, value_order[], heuristics[], taboos[] }
+
+Edge: (Fact)-[:EVIDENCE_OF]-&gt;(Claim)
+      (Event)-[:PART_OF]-&gt;(Thread)
+      (Fact)-[:CONTRADICTS]-&gt;(Fact)   // 显式建模矛盾，不做消解
+      (Claim)-[:SUPERSEDES]-&gt;(Claim)  // 观点演化，保留版本链</code></pre>
+
+<p>两个设计决定值得单独说明。<b>其一，矛盾显式保留。</b>人的想法本就会变、会自相矛盾；系统消解矛盾等于抹掉了最有价值的信息——「我三个月的判断发生过反转」本身就是重要的自我认知。<b>其二，观点带版本链。</b>分身回答「我现在的看法」时，能同时给出「这个看法何时形成、之前是什么」，这才是决策密度的真正提升。</p>
+
+<h2><span class="num">07</span>交互设计</h2>
+
+<h3>7.1 手表端：三个动作，不看屏幕</h3>
+<table>
+  <colgroup><col style="width:26%"><col style="width:34%"><col style="width:40%"></colgroup>
+  <thead><tr><th>动作</th><th>行为</th><th>设计理由</th></tr></thead>
+  <tbody>
+    <tr><td class="k">单击复杂功能</td><td>开启/结束一次采集会话，伴随触觉确认与常驻指示</td><td>唯一主入口，抬腕即可，无需进入 App</td></tr>
+    <tr><td class="k">双击</td><td>打「重点」标记，写入 ±60 秒高优片段</td><td>捕捉「这句话重要」的瞬时判断，是人工监督信号</td></tr>
+    <tr><td class="k">长按表冠</td><td>静默 30 分钟（红区），期间不采集且不积累任何缓冲</td><td>提供物理化的隐私开关，比设置菜单里的开关更可信</td></tr>
+  </tbody>
+</table>
+<p>表盘常驻一个 4pt 的点状标识表示正在采集；进入「红区」时标识变为空心。这是产品伦理的底线，不可为美观移除。</p>
+
+<h3>7.2 iPhone 端：每日 90 秒的确认仪式</h3>
+<p>采集是被动的，确认必须是主动的。日终推送一条「今日记忆」卡片，只做三件事：</p>
+<div class="flow">
+  <div class="n">3 条关键事实</div><span class="a">→</span>
+  <div class="n">1 条待确认观点</div><span class="a">→</span>
+  <div class="n hi">滑动：对 / 错 / 补充</div>
+</div>
+<p>这个动作同时完成两个目标：给用户控制感（不是被偷偷记录），给模型标注信号（低成本持续纠偏）。<b>确认率是产品的第一北极星指标</b>——它同时反映价值感与信任度。</p>
+
+<h3>7.3 输出形态</h3>
+<ul>
+  <li><b>周度复盘：</b>本周说过的话里，有多少与上周判断不一致？哪些承诺未闭环？——这一条最能产生「原来我是这样的人」的震动。</li>
+  <li><b>会前简报：</b>基于历史交互生成「与这个人上次谈了什么、他关心什么、我答应过什么」。</li>
+  <li><b>分身问答：</b>「如果是你会怎么回这封邮件？」输出草稿 + 依据片段 + 与历史决定的相似度。</li>
+</ul>
+
+<h2><span class="num">08</span>隐私、合规与伦理红线</h2>
+
+<div class="callout verdict">
+  <span class="tag">最高优先级风险</span>
+  <p>本产品采集的是<b>他人的语音</b>，属于处理第三方个人信息。在中国大陆运营须符合《个人信息保护法》关于告知同意的要求；在部分司法辖区（如加州、欧盟成员国）对对话录音有更严格的双方同意规则。这不是可以通过产品文案规避的风险，而是决定产品能否存在的约束。</p>
+</div>
+
+<table>
+  <colgroup><col style="width:24%"><col style="width:38%"><col style="width:38%"></colgroup>
+  <thead><tr><th>风险</th><th>具体表现</th><th>设计要求（不可降级）</th></tr></thead>
+  <tbody>
+    <tr><td class="k">未告知录音</td><td>同事、家人在不知情下被采集</td><td>首次启动强制同意流；提供「一键向在场者说明」的标准化提示卡；企业场景须管理员先行获得组织授权</td></tr>
+    <tr><td class="k">职场伦理</td><td>被用于绩效、纠纷、取证</td><td>用户协议明令禁止作为劳动争议证据使用；不提供音频导出与分享功能（仅本人可听）</td></tr>
+    <tr><td class="k">数据安全</td><td>音频泄露即不可撤销</td><td>端到端加密，密钥仅存 Secure Enclave；云端仅存转写文本与加密音频，音频 30 天自动转冷/可配 7 天即删</td></tr>
+    <tr><td class="k">敏感场景</td><td>医疗、法律咨询、私密谈话</td><td>内置场景识别（如检测到医院叫号、法律术语）自动暂停采集并提示；提供地理围栏红区</td></tr>
+    <tr><td class="k">心理负担</td><td>「被监视感」导致弃用</td><td>所有采集有可见指示；提供「今日未记录时段清单」，把不可见变为可见；每周一次「数据体检」提醒可删</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">09</span>成本模型与商业形态</h2>
+
+<p>假设重度用户每日有效采集 4 小时（约 3.6 万字转写量）。成本结构如下：</p>
+
+<table>
+  <colgroup><col style="width:26%"><col style="width:22%"><col style="width:52%"></colgroup>
+  <thead><tr><th>成本项</th><th>月成本/用户</th><th>说明与优化路径</th></tr></thead>
+  <tbody>
+    <tr><td class="k">转写</td><td class="mono">¥0–29</td><td>端侧转写占 80% 则趋近于零；云端兜底按 ¥1.2/小时计</td></tr>
+    <tr><td class="k">蒸馏（LLM）</td><td class="mono">¥15–30</td><td>每日约 5 万输入 token，压缩比 10:1；分层触发可再降 40%（只对高价值片段跑三层）</td></tr>
+    <tr><td class="k">存储</td><td class="mono">¥1–2</td><td>音频 16kbps，文本与向量占比小</td></tr>
+    <tr><td class="k">合计</td><td class="mono">¥16–61</td><td>毛利率在 ¥78/月定价下为 22%–79%，取决于端侧转写覆盖率</td></tr>
+  </tbody>
+</table>
+
+<div class="grid">
+  <div class="card"><div class="h"><em>Lite</em>¥38 / 月</div><p>每日 2 小时采集上限、日终回顾、基础检索。用于降低首次付费门槛。</p></div>
+  <div class="card"><div class="h"><em>Pro</em>¥78 / 月</div><p>不限时长（软上限 6h/日）、三层蒸馏、分身问答、可溯源。主力档位。</p></div>
+  <div class="card"><div class="h"><em>Team</em>¥150 / 席位</div><p>团队共享记忆、会议沉淀、组织级合规策略。需管理员授权链路。</p></div>
+</div>
+
+<h2><span class="num">10</span>路线图</h2>
+
+<div class="tl">
+  <div class="it on">
+    <div class="ph">P0 · 0–3 个月</div>
+    <div class="tt">先解决「记得住」，不谈分身</div>
+    <div class="ds">手表单击采集 + 双击标记；iPhone 端侧转写；日终三条事实摘要。验证指标：日活确认率 ≥ 40%，7 日留存 ≥ 35%。此阶段坚决不做人格层——没有数据量的人格层是纯幻觉。</div>
+  </div>
+  <div class="it">
+    <div class="ph">P1 · 3–6 个月</div>
+    <div class="tt">事件驱动采集 + 记忆图谱</div>
+    <div class="ds">上线 VAD 分级唤醒、断点续传、时序图谱、承诺追踪与提醒。此时产品开始具备「替你记事」的不可替代性。</div>
+  </div>
+  <div class="it">
+    <div class="ph">P2 · 6–12 个月</div>
+    <div class="tt">认知层蒸馏与可溯源分身</div>
+    <div class="ds">观点卡片、矛盾显式建模、会前简报、分身问答。上线可溯源率与决策预测命中率两个硬指标，任何一个低于阈值就不对外发布该功能。</div>
+  </div>
+  <div class="it">
+    <div class="ph">P3 · 12 个月后</div>
+    <div class="tt">人格层与团队形态</div>
+    <div class="ds">风格盲测通过后开放人格层；团队版需要先解决多人同意与权限隔离，否则不进入。</div>
+  </div>
+</div>
+
+<h2><span class="num">11</span>关键指标</h2>
+
+<div class="kpis">
+  <div class="kpi"><div class="v">≥40<span>%</span></div><div class="l">日终确认率<br>价值与信任的复合指标</div></div>
+  <div class="kpi"><div class="v">100<span>%</span></div><div class="l">分身输出可溯源率<br>低于此值不得上线</div></div>
+  <div class="kpi"><div class="v">≥60<span>%</span></div><div class="l">决策盲预测 Top-1 命中率<br>分身有效性的硬门槛</div></div>
+  <div class="kpi"><div class="v">≥35<span>%</span></div><div class="l">7 日留存<br>采集型产品的最低生存线</div></div>
+  <div class="kpi"><div class="v">≤¥45</div><div class="l">单用户月云成本<br>Pro 档毛利底线</div></div>
+</div>
+
+<h2><span class="num">12</span>需要你决策的四个问题</h2>
+
+<table>
+  <colgroup><col style="width:32%"><col style="width:34%"><col style="width:34%"></colgroup>
+  <thead><tr><th>决策点</th><th>选项 A</th><th>选项 B</th></tr></thead>
+  <tbody>
+    <tr><td class="k">主力采集面</td><td>接受 iPhone 兜底，手表做控制面（可行、合规、体验略降）</td><td>坚持手表独立全天采集（技术上不可达，需专用硬件或降级为断续短采）</td></tr>
+    <tr><td class="k">产品边界</td><td>个人自用工具，明确排除职场取证用途</td><td>延伸至团队/企业记忆，需前置解决多人同意与权限模型</td></tr>
+    <tr><td class="k">冷启动策略</td><td>先做「会议纪要与待办」这个已被验证的刚需，再叠加人格</td><td>直接做分身叙事，用概念吸引早期用户，但信任风险高</td></tr>
+    <tr><td class="k">数据保留</td><td>音频 7 天即删，只留文本与证据片段（隐私友好，复盘能力受限）</td><td>音频 30 天保留（可回溯语气与情绪，泄露风险显著上升）</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  <p><b>设计原则备忘</b>　① 手表不强求录得久，只求触达快；② 每一层蒸馏的产物必须是结构化断言，不是段落；③ 可溯源是全系统的公理，不是某个功能的附加项；④ 采集的可见性高于任何体验优化；⑤ 没有数据量之前，人格层一律不做。</p>
+  <p>Athos · Rev 1.0 · 2026-11-16 · 本文档为设计提案，功耗与成本数据为工程估算，上线前需实测校准。</p>
+</footer>
+
+</div>
+</body>
+</html>

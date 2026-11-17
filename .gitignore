@@ -1,0 +1,27 @@
+# ---------- 构建产物 ----------
+build-sim/
+build-dev/
+build-tools/
+export/
+DerivedData/
+*.xcappdata/
+
+# ---------- Xcode ----------
+# .xcodeproj 是 xcodegen 从 project.yml 生成的产物，不纳入版本库
+# 这样也避免把个人的签名配置(signing)带进仓库
+*.xcodeproj/
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# ---------- 本地工具数据 ----------
+.workbuddy/
+
+# ---------- 系统 ----------
+.DS_Store
+*.log
+
+# ---------- 录音与导出（体积大、含隐私内容）----------
+*.m4a
+*.aiff
+*.wav
+*.caf

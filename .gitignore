@@ -1,6 +1,7 @@
 # ---------- 构建产物 ----------
 build-sim/
 build-dev/
+build-phone/
 build-tools/
 export/
 DerivedData/

@@ -5,21 +5,55 @@ options:
   createIntermediateGroups: true
   deploymentTarget:
     watchOS: "10.0"
+    iOS: "17.0"
 
 settings:
   base:
     SWIFT_VERSION: "5.9"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # Xcode 27 的 explicit modules 在调 SwiftUI 的 @State 宏时会让
+    # swift-plugin-server 返回 malformed response，关掉后正常。
+    SWIFT_ENABLE_EXPLICIT_MODULES: NO
     # 由 tools/set-team.sh 自动填写，也可手动替换成你的 10 位 Team ID
     DEVELOPMENT_TEAM: "UAXGUNTFU8"
     CODE_SIGN_STYLE: Automatic
 
 targets:
+
+  # ── 手机端：产品主体。承诺账本、确认、复盘都在这里 ──
+  AthosPhone:
+    type: application
+    platform: iOS
+    sources:
+      - path: Phone
+      - path: Shared
+    info:
+      path: Support/Info-Phone.plist
+      properties:
+        CFBundleDisplayName: Athos
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSRemindersFullAccessUsageDescription: "Athos 只在你亲手确认之后，把那条承诺写进提醒事项。没有确认的一律不写。"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kakaqiang.athos.phone
+        PRODUCT_NAME: Athos
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+    scheme:
+      gatherCoverageData: false
+
+  # ── 手表端：只负责录。判断都在手机上做 ──
   AthosWatch:
     type: application
     platform: watchOS
     sources:
       - path: Sources
+      - path: Shared
     info:
       path: Support/Info.plist
       properties:
@@ -43,3 +77,13 @@ targets:
         PRODUCT_NAME: Athos
         TARGETED_DEVICE_FAMILY: "4"
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: ""
+
+schemes:
+  AthosPhone:
+    build:
+      targets:
+        AthosPhone: all
+    run:
+      config: Debug
+    archive:
+      config: Release

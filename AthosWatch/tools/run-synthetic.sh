@@ -2,7 +2,9 @@
 # 在已启动的 watchOS 模拟器上跑一遍「门控 → 切段 → 写盘」全链路。
 # 灌 12 秒合成信号（2s 静音 → 3s 人声 → 4s 静音 → 3s 人声），不需要麦克风。
 #
-#   bash tools/run-synthetic.sh
+#   bash tools/run-synthetic.sh                 # 默认等 20 秒
+#   bash tools/run-synthetic.sh 30              # 等 30 秒
+#   bash tools/run-synthetic.sh 20 -sensitivity 6   # 额外参数原样传给 App
 #
 # 前提：模拟器已在运行，且已用 tools/preview.sh 装过一次（或本脚本会自行构建安装）。
 
@@ -11,6 +13,14 @@ cd "$(dirname "$0")/.." || exit 1
 
 BUNDLE_ID="com.kakaqiang.athos"
 WAIT_SECONDS="${1:-20}"
+shift || true
+# bash 3.2 在 set -u 下展开空数组会报 unbound variable，先判长度再拼。
+LAUNCH_ARGS=(-synthetic)
+EXTRA_NOTE=""
+if [[ $# -gt 0 ]]; then
+    LAUNCH_ARGS+=("$@")
+    EXTRA_NOTE="，额外参数: $*"
+fi
 
 UDID=$(xcrun simctl list devices booted 2>/dev/null \
     | grep -i "watch" | grep "Booted" | head -1 \
@@ -37,14 +47,14 @@ echo "==> 安装"
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1
 xcrun simctl install "$UDID" "$APP" || exit 1
 
-echo "==> 启动合成信号（约 ${WAIT_SECONDS}s，含 12s 音频 + 收尾）"
+echo "==> 启动合成信号（约 ${WAIT_SECONDS}s，含 12s 音频 + 收尾）${EXTRA_NOTE}"
 TRACE_BEFORE=0
 CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data 2>/dev/null)
 if [[ -n "$CONTAINER" && -f "$CONTAINER/Documents/athos-trace.log" ]]; then
     TRACE_BEFORE=$(wc -l < "$CONTAINER/Documents/athos-trace.log" | tr -d ' ')
 fi
 
-xcrun simctl launch "$UDID" "$BUNDLE_ID" -synthetic >/dev/null
+xcrun simctl launch "$UDID" "$BUNDLE_ID" "${LAUNCH_ARGS[@]}" >/dev/null
 sleep "$WAIT_SECONDS"
 
 CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data 2>/dev/null)

@@ -17,7 +17,7 @@ struct SegmentsView: View {
             }
 
             if store.segments.isEmpty {
-                Text("还没有录音。回到首页点「开始监听」，说话后会自动生成分段。")
+                Text("还没有录音。回到首页点中央那个圆球，说话后会自动生成分段。")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             } else {

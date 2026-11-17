@@ -20,7 +20,9 @@ final class RecordingController: ObservableObject {
     @Published private(set) var estimatedPctPerHour: Double = 0
     @Published var errorMessage: String?
 
-    /// 开场阈值相对噪声底的偏移，表冠可调。调低更灵敏但更费电、更容易录进噪声。
+    /// 开场阈值相对噪声底的偏移。调低更灵敏但更费电、更容易录进噪声。
+    /// 界面上没有入口（46mm 屏留给状态表达），用启动参数调：
+    /// `-sensitivity 8` / `-closeDwell 1.5`，见 tools/preview.sh。
     @Published var sensitivityOffsetDB: Float = 12 { didSet { pushConfig() } }
 
     /// 收场驻留时长，句子间的停顿短于该值不会切段
@@ -35,6 +37,7 @@ final class RecordingController: ObservableObject {
     init() {
         bind()
         observeInterruptions()
+        applyLaunchOverrides()
         #if DEBUG
         // 仅用于模拟器自动化验证：以 -autostart 启动时自动开始监听
         let args = ProcessInfo.processInfo.arguments
@@ -48,6 +51,33 @@ final class RecordingController: ObservableObject {
             Task { await Self.runTranscribeProbe() }
         }
         #endif
+    }
+
+    /// 从启动参数读取门控参数。手表上没有设置界面，调阈值只能靠这个：
+    ///   -sensitivity 8      开场阈值 = 噪声底 + 8 dB（默认 12，越小越灵敏）
+    ///   -closeDwell 1.5     静音 1.5 秒收场（默认 2.0）
+    private func applyLaunchOverrides() {
+        let args = ProcessInfo.processInfo.arguments
+        if let value = Self.doubleValue(after: "-sensitivity", in: args) {
+            // 下限 3 dB：再低噪声底自身的抖动就会触发开门。
+            sensitivityOffsetDB = Float(min(max(value, 3), 40))
+        }
+        if let value = Self.doubleValue(after: "-closeDwell", in: args) {
+            closeDwellSeconds = min(max(value, 0.5), 10)
+        }
+        // init 阶段给存储属性赋值不会触发 didSet，需要手动推一次。
+        pushConfig()
+        if args.contains("-sensitivity") || args.contains("-closeDwell") {
+            AudioCaptureEngine.trace(
+                String(format: "launch overrides: open=floor+%.1fdB closeDwell=%.2fs absGate=%.1fdB",
+                       sensitivityOffsetDB, closeDwellSeconds, config.absoluteGateDBFS)
+            )
+        }
+    }
+
+    private static func doubleValue(after flag: String, in args: [String]) -> Double? {
+        guard let index = args.firstIndex(of: flag), index + 1 < args.count else { return nil }
+        return Double(args[index + 1])
     }
 
     #if DEBUG

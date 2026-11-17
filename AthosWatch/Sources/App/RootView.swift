@@ -61,18 +61,34 @@ struct RootView: View {
 
                     Spacer(minLength: 0)
 
-                    NavigationLink {
-                        SegmentsView()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "waveform")
-                                .font(.system(size: 11))
-                            Text("录音")
-                                .font(.system(size: 11))
+                    // 两个入口并排。左「承诺」是产品的主问题（我答应了什么），
+                    // 右「录音」是原始素材——日常只点左边，出问题才翻右边。
+                    HStack(spacing: 16) {
+                        NavigationLink {
+                            PromisesView()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.seal")
+                                    .font(.system(size: 11))
+                                Text("承诺")
+                                    .font(.system(size: 11))
+                            }
                         }
-                        .foregroundStyle(.white.opacity(0.4))
+                        .buttonStyle(.plain)
+
+                        NavigationLink {
+                            SegmentsView()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "waveform")
+                                    .font(.system(size: 11))
+                                Text("录音")
+                                    .font(.system(size: 11))
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.4))
                     .tint(.white.opacity(0.4))
                     .padding(.bottom, 3)
                 }
@@ -81,8 +97,18 @@ struct RootView: View {
         }
         .ignoresSafeArea()
         // 新段落盘后重算总量；从列表页返回时也重算一次（那里可能删过段）
-        .onAppear { library.reload() }
-        .onChange(of: controller.segmentCount) { _, _ in library.reload() }
+        .onAppear {
+            library.reload()
+            // 蓝牙通道在这里激活：主屏是唯一必然被创建过的视图，
+            // 放这里能保证「录完就发」不需要用户额外点任何东西。
+            WatchLink.shared.activate()
+        }
+        .onChange(of: controller.segmentCount) { _, _ in
+            library.reload()
+            // 每收一段就往手机丢一段。发不出去也没关系，
+            // syncPending 会把没送达的留到下次一起补。
+            WatchLink.shared.syncPending()
+        }
         .alert("提示", isPresented: alertBinding) {
             Button("知道了", role: .cancel) { controller.errorMessage = nil }
         } message: {

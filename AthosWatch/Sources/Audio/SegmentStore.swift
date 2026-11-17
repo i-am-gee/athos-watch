@@ -34,7 +34,7 @@ final class SegmentStore: ObservableObject {
             .filter { $0.pathExtension == "m4a" }
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
 
-        let decoder = JSONDecoder()
+        let decoder = LinkPayload.decoder
         var entries: [SegmentInfo] = []
         var bytes = 0
         var seconds = 0.0

@@ -14,15 +14,48 @@ final class PromiseStore: ObservableObject {
     @Published private(set) var lastDecision: MergeOutcome?
     /// 承诺 id → 提醒事项同步状态（成功或失败原因），只用于界面提示
     @Published private(set) var reminderState: [UUID: String] = [:]
+    /// 上层链路的一句话状态：有没有收到手表快照、收到了几段
+    @Published private(set) var syncNote: String = "正在连接手表"
+    @Published private(set) var lastSyncAt: Date?
 
-    init(seedDemo: Bool = true) {
-        if seedDemo { seed() }
+    /// 演示模式：界面截图和设计评审用，数据是手写的，不接蓝牙。
+    private let isDemo: Bool
+
+    init(seedDemo: Bool = false) {
+        isDemo = seedDemo || ProcessInfo.processInfo.arguments.contains("-seedDemo")
+
+        if isDemo {
+            seed()
+            syncNote = "演示数据"
+        } else {
+            // 真实模式下，手机首页完全由手表推来的快照驱动。
+            // 手机不自己判断——判断的真相在手表，这里只负责显示和落地提醒事项。
+            PhoneLink.shared.onSnapshot = { [weak self] snapshot in
+                self?.apply(snapshot)
+            }
+            PhoneLink.shared.activate()
+        }
+
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-reminderProbe") {
             let snapshot = ledger
             Task { await Self.runReminderProbe(snapshot) }
         }
         #endif
+    }
+
+    /// 收到手表快照。整体替换而不是合并：
+    /// 合并需要一套「谁更新」的规则，而那套规则本身就是判断逻辑，
+    /// 判断逻辑只应该有一份，在手表上。
+    private func apply(_ snapshot: LedgerSnapshot) {
+        guard !isDemo else { return }
+        ledger = CommitmentLedger(snapshot: snapshot)
+        lastSyncAt = snapshot.generatedAt
+        let open = snapshot.commitments.filter(\.isOpenMine).count
+        let pending = snapshot.commitments.filter(\.awaitingMyConfirmation).count
+        syncNote = pending > 0
+            ? "手表传来 \(open) 条，\(pending) 条等你确认"
+            : "手表传来 \(open) 条承诺"
     }
 
     // MARK: 读取
@@ -65,7 +98,17 @@ final class PromiseStore: ObservableObject {
     /// 免得系统写入失败把用户的确认动作也一起回滚掉。
     func confirm(_ commitment: Commitment) {
         ledger.confirm(commitment.id)
+        relay(.confirm, commitment)
         Task { await syncToReminders(commitment) }
+    }
+
+    /// 把动作送回手表。手表是账本的真相，不告诉它的话，
+    /// 下一次快照推过来会把这里刚做的改动原样盖回去。
+    private func relay(_ action: LinkCommand.Action, _ commitment: Commitment) {
+        guard !isDemo else { return }
+        PhoneLink.shared.send(
+            LinkCommand(action: action, commitmentID: commitment.id, at: Date())
+        )
     }
 
     private func syncToReminders(_ commitment: Commitment) async {
@@ -87,10 +130,12 @@ final class PromiseStore: ObservableObject {
     /// 「不是承诺」——不删除原话，只把结论撤掉
     func dismiss(_ commitment: Commitment) {
         ledger.setStatus(commitment.id, to: .dropped)
+        relay(.drop, commitment)
     }
 
     func complete(_ commitment: Commitment) {
         ledger.setStatus(commitment.id, to: .done)
+        relay(.complete, commitment)
     }
 
     func toggleExpanded(_ id: UUID) {

@@ -24,8 +24,6 @@
 	<string>Athos 需要麦克风判断环境中是否有人说话。仅在音量持续超过噪声底时写入音频片段，静音时段不产生文件。</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Athos 把你说到的待办事项写进提醒事项，方便你在 iPhone 上勾选完成。</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Athos 用语音识别把录音变成文字，再由你确认是否生成待办事项。识别结果只保存在本机。</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
@@ -36,7 +34,7 @@
 	</array>
 	<key>WKApplication</key>
 	<true/>
-	<key>WKWatchOnly</key>
-	<true/>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.kakaqiang.athos.phone</string>
 </dict>
 </plist>

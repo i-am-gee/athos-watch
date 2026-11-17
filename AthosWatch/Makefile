@@ -1,6 +1,7 @@
 # Athos · 一条命令跑一件事
 #
 #   make promises  承诺引擎自检（时间解析、改期合并、周复盘；不用模拟器）
+#   make link      蓝牙链路端到端验证（合成语音 → 手表 → 手机转写 → 手表判断）
 #   make phone     构建手机端 + 装进 iPhone 模拟器 + 截图
 #   make review    同上，直接打开复盘页
 #   make doctor    体检：这台电脑能不能装到手表上，卡在哪一步
@@ -16,16 +17,20 @@ SHELL := /bin/bash
 BUNDLE_ID := com.kakaqiang.athos
 SIM_UDID := $(shell xcrun simctl list devices booted 2>/dev/null | grep -i watch | grep Booted | head -1 | sed -E "s/.*\(([0-9A-F-]{36})\).*/\1/")
 
-.PHONY: help promises phone review doctor gate gen sim run export device clean
+.PHONY: help promises link phone review doctor gate gen sim run export device clean
 
 help:
 	@grep -E "^#   make " Makefile | sed "s/^# \{0,1\}//"
 
 # 承诺引擎：纯 Swift，不依赖 Xcode 工程和模拟器
+# Transport 也一起编：账本快照的编解码在那儿，少了它编不过
 promises:
 	@mkdir -p build-tools
-	swiftc -O Shared/Domain/*.swift Tests/promises/main.swift -o build-tools/promisecheck
+	swiftc -O Shared/Domain/*.swift Shared/Transport/*.swift Tests/promises/main.swift -o build-tools/promisecheck
 	@./build-tools/promisecheck
+
+link:
+	@bash tools/link-test.sh
 
 phone: gen
 	@bash tools/build-phone.sh

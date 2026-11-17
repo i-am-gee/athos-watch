@@ -114,3 +114,26 @@ struct CommitmentLedger {
         commitments.filter { $0.status == .done }
     }
 }
+
+// MARK: - 跨端快照
+
+extension CommitmentLedger {
+
+    /// 手表算完，手机照着画。带上 utterances 是因为首页点开一条承诺要能回听原话——
+    /// 只传结论的话，手机上那些播放键会全部变成空的。
+    var snapshot: LedgerSnapshot {
+        LedgerSnapshot(commitments: commitments, utterances: utterances, generatedAt: Date())
+    }
+
+    init(snapshot: LedgerSnapshot) {
+        self.init()
+        self.commitments = snapshot.commitments
+        self.utterances = snapshot.utterances
+    }
+
+    /// 已处理过的转写。手机重复回传同一段时用来挡掉，
+    /// 否则每重连一次，「我答应了什么」就会多出一条一模一样的承诺。
+    func hasProcessed(segmentID: String) -> Bool {
+        utterances.contains { $0.segmentFile == segmentID }
+    }
+}

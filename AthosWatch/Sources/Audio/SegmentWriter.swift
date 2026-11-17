@@ -177,23 +177,18 @@ struct SegmentInfo: Codable, Identifiable {
 
     static func writeSidecar(_ info: SegmentInfo) {
         let sidecar = info.url.deletingPathExtension().appendingPathExtension("json")
-        guard let data = try? JSONEncoder().encode(info) else { return }
+        // 编解码策略必须和蓝牙传输用的一致（毫秒时间戳）。
+        // 曾经这里用默认的 `JSONEncoder`（reference date 秒数），而读取端用
+        // 毫秒时间戳，结果侧写文件**全部解不出来**，每次都静默退到「从文件名猜」。
+        // 表面还能用，但 duration 和 bytes 永远是现场重算的，等于白写一份元数据。
+        guard let data = try? LinkPayload.encoder.encode(info) else { return }
         try? data.write(to: sidecar, options: .atomic)
     }
 
-    /// 文件名形如 seg-20261116-193459-258.m4a，解析出起始时间
+    /// 文件名形如 seg-20261116-193459-258.m4a，解析出起始时间。
+    /// 具体规则在 Shared 的 `SegmentStamp`——手机端重放 Inbox 时要用同一份，
+    /// 曾经这里和那边各写一份、各带一个同样的 bug（忘了剥扩展名）。
     static func date(fromFileName name: String) -> Date? {
-        let parts = name.split(separator: "-")
-        guard parts.count >= 4 else { return nil }
-        let stamp = "\(parts[1])-\(parts[2])-\(parts[3])"
-        return fileNameFormatter.date(from: stamp)
+        SegmentStamp.date(from: name)
     }
-
-    private static let fileNameFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
-        return formatter
-    }()
 }

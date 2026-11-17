@@ -4,11 +4,11 @@
 
 | 端 | 职责 | 不做什么 |
 |---|---|---|
-| Apple Watch | 只在有人说话时写盘，把一天切成可回听的片段 | 不做转写（watchOS 没有 Speech 框架）、不写提醒事项（EventKit 写方法全部禁用于 watchOS） |
-| iPhone | 把片段变成原话，从原话里判断「我答应了什么」，等你确认，写进提醒事项，每周复盘 | 不做长时间录音（麦克风交给手表） |
+| Apple Watch | 只在有人说话时写盘，把一天切成可回听的片段；**判断「谁答应了什么」也在手表上** | 不做语音识别（watchOS 根本没有 Speech 框架，这是系统边界不是取舍） |
+| iPhone | 把片段转成文字并送回手表；展示手表算出的结论，等你确认，写进提醒事项，每周复盘 | 不做承诺判断（判断的真相在手表，手机是镜像） |
 
-手表端解决的是**采集成本**：静音不写盘，一小时 8–9 MB，戴一天不用管。
-手机端解决的是**判断成本**：谁答应了、答应到什么程度、后来有没有变——这部分做不好，录音越多越是负担。
+手表端解决的是**采集成本**：静音不写盘，一小时 8–9 MB，戴一天不用管；同时它也是判断中枢，因为原话和录音本来就在它这儿。
+手机端解决的是**识别成本**：只有 iPhone 能跑语音识别，所以它是「识字的人」——读完把字念回给手表，结论由手表下。
 
 ---
 
@@ -29,8 +29,9 @@
 | 承诺合并（改期不新建、征询等确认、对方请求不入账） | **已实现，38 项命令行断言全过**（`make promises`） |
 | 中文时间解析（周、明日、月底、时刻、无时间） | **已实现并断言**，覆盖 16 种说法 |
 | 手机端：周复盘 | **已实现并运行**，指标全部来自原话 |
-| 转写（语音转文字） | **未实现**，是当前最大的空白 |
-| 手表 ↔ 手机 数据同步（WCSession） | **未实现**，两端目前各自独立运行 |
+| 转写（语音转文字） | **已接入手机端 `SFSpeechRecognizer`**，用真实中文音频成功识别过 6 段；模拟器的系统识别服务后来进入持续报错状态，**真机未验**（见「验证记录」） |
+| 手表 ↔ 手机 蓝牙链路（WCSession） | **已实现并端到端跑通**：真实音频从手表送到手机，文本回传，手表生成承诺，快照回到手机首页 |
+| 说话人分离（谁在说） | **未实现**，目前一段音频整体按「我」处理 |
 | iCloud 同步、Live Activity | **未实现**，见「下一步」 |
 
 端到端验证的实测结果（`-synthetic` 启动，12 秒合成信号：2s 静音 → 3s 人声 → 4s 静音 → 3s 人声）：
@@ -97,6 +98,58 @@ open AthosWatch.xcodeproj
 录音时中心按钮外那圈细弧会一点点走满（每 120 秒走一圈，走满就换下一个文件），这是本段的进度，和下面那行总时长是两个不同的量。
 
 停止后音频在 App 沙盒 `Documents/Segments/` 下，每段一个 `.m4a` 加一个同名 `.json` 元数据。
+
+---
+
+## 蓝牙：录音怎么从手表到手机
+
+```bash
+make link            # 合成 6 段中文语音 → 手表 → 手机转写 → 手表判断 → 截图日志
+make link -- --fake  # 没有可用识别服务时，用已知台词验证后半段（engine=injected）
+```
+
+### 前提：手表 App 必须是伴随 App
+
+以前手表端是 `WKWatchOnly` 的独立 App，没有配对对象，`WCSession` 永远激活不了。改成伴随 App 是关键一步：
+
+```yaml
+# project.yml
+AthosPhone:
+  dependencies:
+    - target: AthosWatch      # xcodegen 会自动生成 "Embed Watch Content" 阶段
+AthosWatch:
+  info:
+    properties:
+      WKCompanionAppBundleIdentifier: com.kakaqiang.athos.phone
+```
+
+产物落在 `Athos.app/Watch/Athos.app`，bundle id 必须以宿主 App 为前缀（`com.kakaqiang.athos.phone.watchkitapp`），否则安装时被系统拒绝。
+
+### 三条通道，各管一段
+
+| 传什么 | 用什么 | 为什么 |
+|---|---|---|
+| 音频（≤56 KB） | `sendMessage` + 回执 | 一句话的音频只有十几 KB，即时送到，回执能确认「真的收下了」 |
+| 音频（>56 KB） | `transferFile` | 120 秒长段可能几百 KB，只有文件通道搬得动；排队、断点友好 |
+| 转写文本 | `sendMessage` + 回执，失败退 `transferUserInfo` | 小、要快；手表在后台时退回排队通道保证送达 |
+| 账本快照 | `updateApplicationContext` | 只保留最新一份，旧的自然覆盖——账本要的就是这个语义 |
+| 确认/放弃/完成 | `transferUserInfo` | 手表多半不在前台，动作必须最终送达 |
+
+### 为什么判断留在手表
+
+转写只能在 iPhone 上做（watchOS 没有 `Speech.framework`），但**判断不需要跟着走**：`Shared/Domain` 是纯 Foundation，两端都能跑。让手机只回传「这段说了哪些字」，手表自己判「谁答应了、答应到什么程度、后来有没有变」，有三个好处：
+
+1. 原话和录音本来就在手表上，判断不用把历史倒来倒去；
+2. 手机不在身边时，抬腕就能看到刚答应的那条；
+3. 判断逻辑只有一份，不会被两端各改一版改歪。
+
+手机端首页是这份快照的镜像，不自己合并——合并需要一套「谁更新」的规则，而那套规则本身就是判断。
+
+### 两个会静默丢数据的坑
+
+**坑一：`transferFile` 在手表模拟器上不投递。** 调用返回正常，手表端日志也正常，手机端连 `handleIncomingFile` 都不出现。所以小段改走字典通道，模拟器上才验证得动，真机两条路径都在。
+
+**坑二：`transferUserInfo` 的 `didFinish` 在模拟器上会立刻回调「成功」，但对端根本没收到。** 如果拿它当送达依据，录音会被标记成「已发送」永远不重试。现在只有 `sendMessage` 的**回执**才算送达；失败会从已发送集合里摘掉，下次补发。
 
 ---
 
@@ -450,11 +503,28 @@ MP4 的 `moov`（索引）只在文件**关闭**时才写。App 被系统杀掉�
 
 这是物理限制，不是 bug；能做的是把损失压小：单段上限已从 300 秒降到 **120 秒**，也就是强杀最多丢 2 分钟。
 
-### 3. 还没做的：转写与待办
+### 3. 转写：接上了，但还没在真机上跑过
 
-现在音频只是落盘，**没有转写、没有上传、没有文字**。
+手表仍然不做识别——watchOS 27.2 SDK 里没有 `Speech.framework`（`ls .../WatchOS27.2.sdk/System/Library/Frameworks | grep Speech` 无输出），这是系统边界。识别放在手机上：
 
-想走「录音 → 待办」这条路，先读 [docs/recording-to-todo.md](docs/recording-to-todo.md)。核心结论：watchOS **既没有 Speech 框架**（不能自己转文字），**EventKit 写操作也全部被禁**（不能自己建提醒事项），所以纯手表闭环不成立，必须有服务端或一个极简 iPhone 端参与。文档里给了三条可行路径对比和已经定好的服务端契约。
+- `LocalTranscriber` 用 `SFSpeechRecognizer`，`requiresOnDeviceRecognition` 能开就开（录音不出手机），开不了才退到系统服务，并在结果里标 `engine`。
+- 用的是 `SFTranscriptionSegment.timestamp` 的真实位置，所以首页那个播放键能跳到这句话开始的地方，不是按字数估的。
+- 中文的 segment 是按词切的，直接一句一个会把「我 / 周五 / 前 / 把 / 报价 / 发给 / 小李」拆散，解析器一句都认不出来。所以按标点和 0.55 秒停顿重新聚句。
+
+**验证到哪一步了：**
+
+| 环节 | 结果 |
+|---|---|
+| 真实音频从手表到手机 | 通过（6 段、10–15 KB 全部到达，见 `link.log`） |
+| 手机端识别中文 | **成功过一次**：6 段分别识别为「我就把报价发给小李」「改到下周一吧」「要不周五发」「你有空帮我看一下吗？」「我把合同整理一下」「合同」，`engine=server` |
+| 手表判断并生成承诺 | 通过（4 条承诺，其中 2 条带 `dueChanged` 修订，见 `ledger.json`） |
+| 快照回手机首页 | 通过（首页显示 4 条、2 条待确认、2 条改期） |
+| 真机识别 | **未验证** |
+| 模拟器当前状态 | 之后系统识别服务持续报 `Failed to initialize recognizer`，重启模拟器、重启 `corespeechd`、复用识别器实例、失败重试都没恢复 |
+
+第一次识别的第一句「我周五前」被听成了「我就」——这类错误正好说明为什么解析器要「宁可返回 nil 也不猜」：错一个字，日期就整个丢了，但至少不会凭空造出一条「周五前」的承诺。
+
+没有识别服务时用 `-fakeTranscript` 注入已知台词，只验证「回传 → 判断 → 同步」这后半段，`engine` 标成 `injected`，不能当成转写已验证。
 
 ---
 
@@ -474,10 +544,16 @@ AthosWatch/
 │   ├── CommitmentMerger.swift       四条合并规则 + bigram 相似度
 │   ├── CommitmentLedger.swift       账本：原话进，结论出
 │   └── WeeklyReview.swift           周复盘指标与结论句
+├── Shared/Transport/                ★ 两端共用：蓝牙协议
+│   ├── LinkProtocol.swift           三条通道的消息格式、文件名时间戳解析
+│   └── LinkLog.swift                写文件日志（模拟器抓不到 print）
 ├── Sources/                         手表端
 │   ├── App/
-│   │   ├── AthosWatchApp.swift      入口
+│   │   ├── AthosWatchApp.swift      入口（启动即建账本，否则转写回调没人接）
 │   │   └── RootView.swift           主界面：一个圆球 + 三字状态 + 总时长
+│   ├── Link/
+│   │   ├── WatchLink.swift          蓝牙：补发、送达确认、收转写、推快照
+│   │   └── WatchLedger.swift        ★ 判断中枢：转写 → 承诺 → 快照
 │   ├── Audio/
 │   │   ├── SonicGate.swift          ★ 门控状态机（纯逻辑，可单测）
 │   │   ├── PowerLedger.swift        ★ 功耗账本（纯逻辑，可单测）
@@ -490,11 +566,14 @@ AthosWatch/
 │   │   └── RecordingController.swift 权限、中断、状态广播
 │   └── UI/
 │       ├── SonicOrbView.swift       主视觉：环形声波 + 光晕 + 分段进度弧
-│       └── SegmentsView.swift       录音列表 + 就地试听
+│       ├── SegmentsView.swift       录音列表 + 就地试听
+│       └── PromisesView.swift       表上的「我答应了什么」（含链路状态与空态诊断）
 ├── Phone/                           手机端
 │   ├── App/AthosPhoneApp.swift      入口 + 两个 Tab
 │   ├── Data/PromiseStore.swift      账本容器、演示数据、-reminderProbe 自检
 │   ├── Services/ReminderWriter.swift 写系统提醒事项（只有 iOS 能做）
+│   ├── Services/PhoneLink.swift      蓝牙：收音频、转写、回传、收快照、下发指令
+│   ├── Services/LocalTranscriber.swift SFSpeechRecognizer 封装 + 按停顿聚句
 │   └── UI/
 │       ├── PromiseHomeView.swift    我答应了什么：三段列表 + 原话时间线
 │       ├── ReviewView.swift         周复盘：结论句 + 指标 + 这周的原话
@@ -504,6 +583,7 @@ AthosWatch/
 │   └── promises/main.swift          手机端：时间解析、合并语义、复盘口径
 ├── tools/
 │   ├── build-phone.sh               手机端一键构建 + 装机 + 截图
+│   ├── link-test.sh                 蓝牙链路端到端验证（真实中文语音）
 │   ├── doctor.sh                    环境体检（能不能装真机、卡在哪步）
 │   ├── pull-recordings.sh           把真机上的录音导到本机
 │   ├── run-synthetic.sh             模拟器上跑全链路（合成信号）
